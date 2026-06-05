@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Memória de classificações{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+    <div>
+      <h2 style="font-size:1.4rem">🧠 Memória de classificações</h2>
+      <p style="color:#888;font-size:.85rem;margin-top:4px">
+        Toda vez que você confirma uma categoria, ela é salva aqui. No próximo mês, o sistema aplica automaticamente.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    {% if items %}
+      <table>
+        <thead>
+          <tr>
+            <th>Descrição</th>
+            <th>Categoria confirmada</th>
+            <th>Atualizado em</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+          <tr>
+            <td>{{ item.descricao_orig }}</td>
+            <td><span class="badge badge-confirmado">{{ item.categoria }}</span></td>
+            <td style="color:#aaa;font-size:.82rem">{{ item.atualizado_em[:10] if item.atualizado_em else '—' }}</td>
+            <td>
+              <form method="post" action="/memoria/excluir/{{ item.descricao_norm }}"
+                    onsubmit="return confirm('Remover esta classificação da memória?')">
+                <button type="submit" class="btn btn-danger">✕ Remover</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="color:#aaa;text-align:center;padding:40px">
+        Nenhuma classificação na memória ainda.<br>
+        <span style="font-size:.85rem">Elas aparecem aqui quando você confirma lançamentos pendentes.</span>
+      </p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

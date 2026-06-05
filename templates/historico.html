@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Comparativo entre meses{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .stat { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.07); text-align: center; }
+  .stat .num { font-size: 1.4rem; font-weight: 700; }
+  .stat .lbl { font-size: .78rem; color: #888; margin-top: 4px; }
+  .verde   { color: #2d6a4f; }
+  .vermelho{ color: #c1121f; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+    <h2 style="font-size:1.4rem">📈 Comparativo entre meses</h2>
+    <a href="/" class="btn btn-secondary" style="padding:8px 16px;font-size:.85rem">+ Novo extrato</a>
+  </div>
+
+  {% if dados|length == 0 %}
+    <div class="card">
+      <p style="color:#aaa;text-align:center;padding:40px">Nenhum mês importado ainda.</p>
+    </div>
+  {% else %}
+
+  <!-- Cards de resumo -->
+  <div class="stats-row">
+    {% set ultimo = dados[-1] %}
+    <div class="stat">
+      <div class="num verde">{{ fmt(ultimo.receita) }}</div>
+      <div class="lbl">Receita — {{ ultimo.label }}</div>
+    </div>
+    <div class="stat">
+      <div class="num {{ 'verde' if ultimo.lucro >= 0 else 'vermelho' }}">{{ fmt(ultimo.lucro) }}</div>
+      <div class="lbl">Lucro — {{ ultimo.label }} ({{ ultimo.pct_lucro }}%)</div>
+    </div>
+    {% if dados|length > 1 %}
+      {% set penult = dados[-2] %}
+      {% set var_receita = ultimo.receita - penult.receita %}
+      {% set var_lucro   = ultimo.lucro   - penult.lucro %}
+      <div class="stat">
+        <div class="num {{ 'verde' if var_receita >= 0 else 'vermelho' }}">
+          {{ '+' if var_receita >= 0 else '' }}{{ fmt(var_receita) }}
+        </div>
+        <div class="lbl">Variação receita vs {{ penult.label }}</div>
+      </div>
+      <div class="stat">
+        <div class="num {{ 'verde' if var_lucro >= 0 else 'vermelho' }}">
+          {{ '+' if var_lucro >= 0 else '' }}{{ fmt(var_lucro) }}
+        </div>
+        <div class="lbl">Variação lucro vs {{ penult.label }}</div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Gráfico evolução -->
+  <div class="card">
+    <h2>Evolução mensal</h2>
+    <canvas id="chartEvolucao" height="120"></canvas>
+  </div>
+
+  <!-- Gráfico composição de custos -->
+  <div class="card">
+    <h2>Composição de custos por mês</h2>
+    <canvas id="chartCustos" height="100"></canvas>
+  </div>
+
+  <!-- Tabela detalhada -->
+  <div class="card">
+    <h2>Detalhe por mês</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Mês</th>
+          <th>Receita Bruta</th>
+          <th>CMV</th>
+          <th>Mão de Obra</th>
+          <th>Pró-labore</th>
+          <th>Custo Fixo</th>
+          <th>Lucro Líquido</th>
+          <th>Margem</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for d in dados|reverse %}
+        <tr>
+          <td><strong>{{ d.label }}</strong></td>
+          <td class="valor-entrada">{{ fmt(d.receita) }}</td>
+          <td class="valor-saida">{{ fmt(d.cmv) }}</td>
+          <td class="valor-saida">{{ fmt(d.cmo) }}</td>
+          <td style="color:#b55d00;font-weight:600;font-variant-numeric:tabular-nums">{{ fmt(d.prolabore) }}</td>
+          <td class="valor-saida">{{ fmt(d.cf) }}</td>
+          <td class="{{ 'valor-entrada' if d.lucro >= 0 else 'valor-saida' }}">{{ fmt(d.lucro) }}</td>
+          <td class="{{ 'valor-pos' if d.pct_lucro >= 0 else 'valor-neg' }}">{{ d.pct_lucro }}%</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% endif %}
+</div>
+
+<script>
+const dados = {{ dados|tojson }};
+const labels = dados.map(d => d.label);
+
+// Gráfico de evolução
+new Chart(document.getElementById('chartEvolucao'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'Receita',
+        data: dados.map(d => d.receita),
+        borderColor: '#2d6a4f', backgroundColor: 'rgba(45,106,79,.08)',
+        tension: .3, fill: true, pointRadius: 5,
+      },
+      {
+        label: 'Pró-labore',
+        data: dados.map(d => d.prolabore),
+        borderColor: '#e9a84c', backgroundColor: 'rgba(233,168,76,.08)',
+        tension: .3, fill: false, pointRadius: 5,
+        borderDash: [4,3],
+      },
+      {
+        label: 'Lucro Líquido',
+        data: dados.map(d => d.lucro),
+        borderColor: '#457b9d', backgroundColor: 'rgba(69,123,157,.08)',
+        tension: .3, fill: true, pointRadius: 5,
+        borderDash: [5,3],
+      },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') } }
+    }
+  }
+});
+
+// Gráfico de composição de custos
+new Chart(document.getElementById('chartCustos'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'CMV (Insumos)',   data: dados.map(d => d.cmv),       backgroundColor: '#e63946' },
+      { label: 'Mão de Obra',     data: dados.map(d => d.cmo),       backgroundColor: '#f4a261' },
+      { label: 'Pró-labore',      data: dados.map(d => d.prolabore), backgroundColor: '#e9a84c' },
+      { label: 'Custo Fixo',      data: dados.map(d => d.cf),        backgroundColor: '#457b9d' },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      x: { stacked: true },
+      y: { stacked: true, ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') } }
+    }
+  }
+});
+</script>
+{% endblock %}

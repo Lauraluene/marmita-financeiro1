@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Confirmar lançamentos — {{ mes_nome }} {{ ano }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .nova-cat-input {
+    display: none;
+    margin-top: 6px;
+    width: 100%;
+    padding: 6px 10px;
+    border: 1.5px solid #e63946;
+    border-radius: 6px;
+    font-size: .85rem;
+  }
+  .nova-cat-input:focus { outline: none; border-color: #c1121f; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card">
+    <h2>⚠️ Lançamentos para confirmar — {{ mes_nome }} {{ ano }}</h2>
+    <p style="color:#666;font-size:.9rem;margin-bottom:20px">
+      Esses lançamentos não foram identificados automaticamente. Escolha a categoria ou crie uma nova.
+    </p>
+
+    <form action="/confirmar" method="post">
+      <input type="hidden" name="mes" value="{{ mes }}">
+      <input type="hidden" name="ano" value="{{ ano }}">
+
+      <table>
+        <thead>
+          <tr>
+            <th>Dia</th>
+            <th>Descrição</th>
+            <th>Valor</th>
+            <th>Sugestão</th>
+            <th>Categoria</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for l in pendentes %}
+          <tr>
+            <td>{{ "%02d"|format(l.dia) }}/{{ "%02d"|format(l.mes) }}</td>
+            <td>{{ l.descricao }}</td>
+            <td class="valor-saida">R$ {{ "%.2f"|format(l.valor)|replace(".", ",") }}</td>
+            <td><span class="badge badge-pendente">{{ l.categoria }}</span></td>
+            <td>
+              <input type="hidden" name="desc_{{ l.id }}" value="{{ l.descricao }}">
+              <select name="cat_{{ l.id }}"
+                      onchange="toggleNovaCat(this, {{ l.id }})"
+                      style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:.85rem;width:100%">
+                {% for cat in categorias %}
+                  <option value="{{ cat }}" {% if cat == l.categoria %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+                <option value="__nova__">➕ Nova categoria...</option>
+              </select>
+              <input type="text"
+                     id="nova_cat_{{ l.id }}"
+                     name="nova_cat_{{ l.id }}"
+                     class="nova-cat-input"
+                     placeholder="Nome da nova categoria">
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      <div style="margin-top:20px;display:flex;gap:12px">
+        <button type="submit" class="btn btn-primary">Confirmar e ver dashboard</button>
+        <a href="/dashboard/{{ mes }}/{{ ano }}" class="btn btn-secondary">Pular (manter sugestões)</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function toggleNovaCat(select, id) {
+  const input = document.getElementById('nova_cat_' + id);
+  if (select.value === '__nova__') {
+    input.style.display = 'block';
+    input.required = true;
+    input.focus();
+  } else {
+    input.style.display = 'none';
+    input.required = false;
+    input.value = '';
+  }
+}
+</script>
+{% endblock %}

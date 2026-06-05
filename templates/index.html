@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Início — Marmita do Engenheiro{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <div class="card" style="display:flex;gap:32px;align-items:flex-start">
+    <div style="flex:1">
+      <h2>📤 Importar extrato do mês</h2>
+      <p style="color:#666;font-size:.9rem;margin-bottom:20px">
+        Faça upload do PDF do extrato Nubank. O sistema vai categorizar tudo automaticamente.
+      </p>
+      <form action="/upload" method="post" enctype="multipart/form-data">
+        <label style="display:block;margin-bottom:8px;font-weight:600;font-size:.9rem">Arquivo PDF</label>
+        <input type="file" name="extrato" accept=".pdf" required
+               style="display:block;width:100%;padding:10px;border:2px dashed #ccc;border-radius:8px;margin-bottom:16px;font-size:.9rem">
+        <button type="submit" class="btn btn-primary">Importar extrato</button>
+      </form>
+    </div>
+
+    <div style="flex:1;border-left:1px solid #eee;padding-left:32px">
+      <h2>📋 Meses importados</h2>
+      {% if meses %}
+        <table>
+          <thead><tr><th>Mês / Ano</th><th>Importado em</th><th></th></tr></thead>
+          <tbody>
+          {% for m in meses %}
+            {% set mes_nome = ["","Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][m.mes] %}
+            <tr>
+              <td><strong>{{ mes_nome }} {{ m.ano }}</strong></td>
+              <td style="color:#888;font-size:.85rem">{{ m.importado_em[:10] }}</td>
+              <td style="display:flex;gap:8px;align-items:center">
+                <a href="/dashboard/{{ m.mes }}/{{ m.ano }}" class="btn btn-secondary" style="padding:6px 14px;font-size:.8rem">Ver →</a>
+                <form method="post" action="/excluir_mes/{{ m.mes }}/{{ m.ano }}"
+                      onsubmit="return confirm('Excluir todos os dados de {{ mes_nome }}/{{ m.ano }}? Esta ação não pode ser desfeita.')">
+                  <button type="submit" class="btn btn-danger">🗑 Excluir</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="color:#aaa;font-size:.9rem">Nenhum mês importado ainda.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

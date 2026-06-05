@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — Marmita do Engenheiro</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #1a1a2e;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .box {
+    background: white;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    text-align: center;
+  }
+  .logo { font-size: 3rem; margin-bottom: 8px; }
+  h1 { font-size: 1.2rem; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  p  { font-size: .85rem; color: #888; margin-bottom: 32px; }
+
+  label { display: block; text-align: left; font-size: .82rem; font-weight: 600; color: #555; margin-bottom: 6px; }
+  input {
+    width: 100%; padding: 11px 14px;
+    border: 1.5px solid #ddd; border-radius: 8px;
+    font-size: .95rem; margin-bottom: 16px;
+    transition: border-color .2s;
+  }
+  input:focus { outline: none; border-color: #e63946; }
+
+  button {
+    width: 100%; padding: 12px;
+    background: #e63946; color: white;
+    border: none; border-radius: 8px;
+    font-size: 1rem; font-weight: 700;
+    cursor: pointer; margin-top: 4px;
+    transition: background .15s;
+  }
+  button:hover { background: #c1121f; }
+
+  .erro {
+    background: #f8d7da; color: #721c24;
+    padding: 10px 14px; border-radius: 8px;
+    font-size: .85rem; margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo">🍱</div>
+    <h1>Marmita do Engenheiro</h1>
+    <p>Painel financeiro</p>
+
+    {% if erro %}
+      <div class="erro">{{ erro }}</div>
+    {% endif %}
+
+    <form method="post">
+      <label>Usuário</label>
+      <input type="text" name="usuario" autofocus autocomplete="username">
+      <label>Senha</label>
+      <input type="password" name="senha" autocomplete="current-password">
+      <button type="submit">Entrar</button>
+    </form>
+  </div>
+</body>
+</html>
