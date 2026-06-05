@@ -172,6 +172,7 @@ def dashboard(mes, ano):
 
     lancamentos = [
         Lancamento(
+            id=r.get("id"),
             dia=r["dia"], mes=r["mes"], ano=r["ano"],
             tipo=r["tipo"], descricao=r["descricao"], valor=r["valor"],
             categoria=r["categoria"], subcategoria=r.get("subcategoria", ""),
@@ -197,9 +198,11 @@ def dashboard(mes, ano):
 
     pendentes_count = len([l for l in lancamentos if l.status == "pendente"])
 
-    categorias_custom = db.buscar_categorias_custom()
+    categorias_custom = db.buscar_categorias_custom("saida")
     todas_categorias = CATEGORIAS_SAIDAS + [c for c in categorias_custom if c not in CATEGORIAS_SAIDAS]
-    categorias_entrada = ["iFood", "Cartão", "Outras"]
+    cats_entrada_base = ["iFood", "Cartão", "Outras"]
+    cats_entrada_custom = db.buscar_categorias_custom("entrada")
+    categorias_entrada = cats_entrada_base + [c for c in cats_entrada_custom if c not in cats_entrada_base]
 
     return render_template(
         "dashboard.html",
@@ -285,9 +288,10 @@ def api_atualizar_categoria():
 def api_categoria_nova():
     data = request.get_json()
     nome = data.get("nome", "").strip()
+    tipo = data.get("tipo", "saida")
     if nome:
-        db.salvar_categoria_custom(nome)
-        return jsonify({"ok": True, "nome": nome})
+        db.salvar_categoria_custom(nome, tipo)
+        return jsonify({"ok": True, "nome": nome, "tipo": tipo})
     return jsonify({"ok": False}), 400
 
 if __name__ == "__main__":

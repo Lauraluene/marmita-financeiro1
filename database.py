@@ -112,15 +112,20 @@ def excluir_memoria(descricao_norm: str):
 
 # ── CATEGORIAS PERSONALIZADAS ─────────────────────────────────────────────────
 
-def salvar_categoria_custom(nome: str):
+def salvar_categoria_custom(nome: str, tipo: str = "saida"):
     nome = nome.strip()
     if not nome:
         return
-    _upsert("categorias_custom", {"nome": nome}, "nome")
+    _upsert("categorias_custom", {"nome": nome, "tipo": tipo}, "nome")
 
-def buscar_categorias_custom() -> list:
-    rows = _get("categorias_custom", {"select": "nome", "order": "nome"})
-    return [r["nome"] for r in rows]
+def buscar_categorias_custom(tipo: str = "saida") -> list:
+    try:
+        rows = _get("categorias_custom", {"select": "nome,tipo", "order": "nome"})
+        return [r["nome"] for r in rows if r.get("tipo", "saida") == tipo]
+    except Exception:
+        # Fallback se coluna 'tipo' ainda não existir
+        rows = _get("categorias_custom", {"select": "nome", "order": "nome"})
+        return [r["nome"] for r in rows] if tipo == "saida" else []
 
 # ── LANÇAMENTOS ───────────────────────────────────────────────────────────────
 

@@ -248,7 +248,12 @@
                 <td>
                   <div class="cat-display" id="display-{{ l.id }}">
                     <span id="cattext-{{ l.id }}">{{ l.categoria }}</span>
-                    <button class="btn-edit-cat" onclick="editarCat({{ l.id }}, '{{ l.descricao|replace("'","\\'")|replace('"','\\"') }}', 'saida')" title="Alterar categoria">✏️</button>
+                    <button class="btn-edit-cat"
+                      data-lid="{{ l.id }}"
+                      data-tipo="saida"
+                      data-prefix=""
+                      onclick="abrirEdit(this)"
+                      title="Alterar categoria">✏️</button>
                   </div>
                   <div class="cat-edit-form" id="form-{{ l.id }}">
                     <select id="sel-{{ l.id }}">
@@ -256,8 +261,16 @@
                         <option value="{{ c }}" {% if c == l.categoria %}selected{% endif %}>{{ c }}</option>
                       {% endfor %}
                     </select>
-                    <button class="btn-save-cat" onclick="salvarCat({{ l.id }}, '{{ l.descricao|replace("'","\\'")|replace('"','\\"') }}', 'saida')">Salvar</button>
-                    <button class="btn-cancel-cat" onclick="cancelarEdit({{ l.id }})">✕</button>
+                    <button class="btn-save-cat"
+                      data-lid="{{ l.id }}"
+                      data-tipo="saida"
+                      data-prefix=""
+                      data-desc="{{ l.descricao|e }}"
+                      onclick="confirmarEdit(this)">Salvar</button>
+                    <button class="btn-cancel-cat"
+                      data-lid="{{ l.id }}"
+                      data-prefix=""
+                      onclick="fecharEdit(this)">✕</button>
                   </div>
                 </td>
                 <td class="valor-saida">{{ fmt(l.valor) }}</td>
@@ -278,8 +291,20 @@
       {% set cartao_ents = ents|selectattr('subcategoria','equalto','Cartão')|list %}
       {% set outras_ents = ents|rejectattr('subcategoria','equalto','iFood')|rejectattr('subcategoria','equalto','Cartão')|list %}
 
+      <!-- Cabeçalho com botão nova tipo -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:.85rem;color:#888">Clique no lápis para alterar o tipo de uma entrada</span>
+        <button class="btn btn-secondary" style="font-size:.8rem;padding:6px 14px" onclick="toggleNovaTipo()">+ Novo tipo de entrada</button>
+      </div>
+      <div id="novoTipoBox" class="nova-cat-inline">
+        <input type="text" id="novoTipoInput" placeholder="Ex: Dinheiro, Débito…">
+        <button class="btn" style="background:#2d6a4f;color:white;font-size:.85rem;padding:7px 16px" onclick="salvarNovoTipo()">Salvar</button>
+        <button class="btn btn-secondary" style="font-size:.85rem;padding:7px 14px" onclick="toggleNovaTipo()">Cancelar</button>
+        <span id="novoTipoMsg" style="font-size:.8rem;color:#2d6a4f;display:none">✔ Tipo adicionado!</span>
+      </div>
+
       <!-- Caixas de total clicáveis -->
-      <div class="entrada-total-box">
+      <div class="entrada-total-box" style="margin-top:16px">
         <div class="entrada-total active" id="et-todas" onclick="filtrarEntradas('todas')">
           <div class="et-label">Todas as entradas</div>
           <div class="et-val">{{ fmt(dre.receita_bruta) }}</div>
@@ -316,7 +341,12 @@
             <td>
               <div class="cat-display" id="edisplay-{{ l.id }}">
                 <span id="ecattext-{{ l.id }}">{{ l.subcategoria or l.categoria }}</span>
-                <button class="btn-edit-cat" onclick="editarCat({{ l.id }}, '{{ l.descricao|replace("'","\\'")|replace('"','\\"') }}', 'entrada')" title="Alterar tipo">✏️</button>
+                <button class="btn-edit-cat"
+                  data-lid="{{ l.id }}"
+                  data-tipo="entrada"
+                  data-prefix="e"
+                  onclick="abrirEdit(this)"
+                  title="Alterar tipo">✏️</button>
               </div>
               <div class="cat-edit-form" id="eform-{{ l.id }}">
                 <select id="esel-{{ l.id }}">
@@ -324,8 +354,16 @@
                     <option value="{{ c }}" {% if c == l.subcategoria %}selected{% endif %}>{{ c }}</option>
                   {% endfor %}
                 </select>
-                <button class="btn-save-cat" onclick="salvarCat({{ l.id }}, '{{ l.descricao|replace("'","\\'")|replace('"','\\"') }}', 'entrada')">Salvar</button>
-                <button class="btn-cancel-cat" onclick="cancelarEdit({{ l.id }}, 'entrada')">✕</button>
+                <button class="btn-save-cat"
+                  data-lid="{{ l.id }}"
+                  data-tipo="entrada"
+                  data-prefix="e"
+                  data-desc="{{ l.descricao|e }}"
+                  onclick="confirmarEdit(this)">Salvar</button>
+                <button class="btn-cancel-cat"
+                  data-lid="{{ l.id }}"
+                  data-prefix="e"
+                  onclick="fecharEdit(this)">✕</button>
               </div>
             </td>
             <td class="valor-entrada">{{ fmt(l.valor) }}</td>
@@ -352,7 +390,12 @@
             <td>
               <div class="cat-display" id="adisplay-{{ l.id }}">
                 <span id="acattext-{{ l.id }}">{{ l.categoria }}{% if l.subcategoria %} / {{ l.subcategoria }}{% endif %}</span>
-                <button class="btn-edit-cat" onclick="editarCat({{ l.id }}, '{{ l.descricao|replace("'","\\'")|replace('"','\\"') }}', '{{ l.tipo }}')" title="Alterar categoria">✏️</button>
+                <button class="btn-edit-cat"
+                  data-lid="{{ l.id }}"
+                  data-tipo="{{ l.tipo }}"
+                  data-prefix="a"
+                  onclick="abrirEdit(this)"
+                  title="Alterar categoria">✏️</button>
               </div>
               <div class="cat-edit-form" id="aform-{{ l.id }}">
                 {% if l.tipo == 'saida' %}
@@ -368,8 +411,16 @@
                     {% endfor %}
                   </select>
                 {% endif %}
-                <button class="btn-save-cat" onclick="salvarCat({{ l.id }}, '{{ l.descricao|replace("'","\\'")|replace('"','\\"') }}', '{{ l.tipo }}', 'a')">Salvar</button>
-                <button class="btn-cancel-cat" onclick="cancelarEdit({{ l.id }}, '{{ l.tipo }}', 'a')">✕</button>
+                <button class="btn-save-cat"
+                  data-lid="{{ l.id }}"
+                  data-tipo="{{ l.tipo }}"
+                  data-prefix="a"
+                  data-desc="{{ l.descricao|e }}"
+                  onclick="confirmarEdit(this)">Salvar</button>
+                <button class="btn-cancel-cat"
+                  data-lid="{{ l.id }}"
+                  data-prefix="a"
+                  onclick="fecharEdit(this)">✕</button>
               </div>
             </td>
             <td class="{{ 'valor-saida' if l.tipo == 'saida' else 'valor-entrada' }}">{{ fmt(l.valor) }}</td>
@@ -435,33 +486,39 @@ function showTab(name, btn) {
   if (btn) btn.classList.add('active');
 }
 
-// ── Edição inline de categoria ────────────────────────────────────────────
-function editarCat(id, desc, tipo, prefix) {
-  prefix = prefix || (tipo === 'entrada' ? 'e' : '');
-  var p = prefix;
-  document.getElementById(p + 'display-' + id).style.display = 'none';
-  var form = document.getElementById(p + 'form-' + id);
+// ── Edição inline — funções limpas com data-attributes ───────────────────
+function _getId(btn)     { return btn.dataset.lid; }
+function _getPrefix(btn) { return btn.dataset.prefix || ''; }
+function _getTipo(btn)   { return btn.dataset.tipo; }
+
+function abrirEdit(btn) {
+  var id = _getId(btn), p = _getPrefix(btn);
+  var dispId = p + 'display-' + id;
+  var formId = p + 'form-' + id;
+  var disp = document.getElementById(dispId);
+  var form = document.getElementById(formId);
+  if (!disp || !form) { console.error('Elemento não encontrado:', dispId, formId); return; }
+  disp.style.display = 'none';
   form.style.display = 'flex';
 }
 
-function cancelarEdit(id, tipo, prefix) {
-  prefix = prefix || (tipo === 'entrada' ? 'e' : '');
-  var p = prefix || '';
+function fecharEdit(btn) {
+  var id = _getId(btn), p = _getPrefix(btn);
   document.getElementById(p + 'display-' + id).style.display = '';
   document.getElementById(p + 'form-' + id).style.display = 'none';
 }
 
-function salvarCat(id, desc, tipo, prefix) {
-  var p = prefix || (tipo === 'entrada' ? 'e' : '');
-  var sel = document.getElementById(p + 'sel-' + id);
+function confirmarEdit(btn) {
+  var id = _getId(btn), p = _getPrefix(btn), tipo = _getTipo(btn);
+  var desc = btn.dataset.desc || '';
+  var selId = (p === 'e' ? 'esel-' : p === 'a' ? 'asel-' : 'sel-') + id;
+  var sel = document.getElementById(selId);
+  if (!sel) { console.error('Select não encontrado:', selId); return; }
   var val = sel.value;
 
-  var body = { id: id, descricao: desc };
-  if (tipo === 'saida') {
-    body.categoria = val;
-  } else {
-    body.subcategoria = val;
-  }
+  var body = { id: parseInt(id), descricao: desc };
+  if (tipo === 'saida') body.categoria = val;
+  else body.subcategoria = val;
 
   fetch('/api/categoria', {
     method: 'POST',
@@ -469,26 +526,22 @@ function salvarCat(id, desc, tipo, prefix) {
     body: JSON.stringify(body)
   }).then(r => r.json()).then(data => {
     if (data.ok) {
-      // Atualiza texto exibido
       var textEl = document.getElementById(p + 'cattext-' + id);
       if (textEl) textEl.textContent = val;
-      // Fecha form
-      cancelarEdit(id, tipo, p);
-      // Feedback visual
-      var display = document.getElementById(p + 'display-' + id);
-      display.style.background = '#e8f5e9';
-      setTimeout(() => display.style.background = '', 1500);
+      fecharEdit(btn);
+      var disp = document.getElementById(p + 'display-' + id);
+      disp.style.background = '#e8f5e9';
+      setTimeout(() => disp.style.background = '', 1500);
     }
   }).catch(() => alert('Erro ao salvar. Tente novamente.'));
 }
 
 // ── Filtro de entradas ────────────────────────────────────────────────────
 function filtrarEntradas(tipo) {
-  // Atualiza boxes
   document.querySelectorAll('.entrada-total').forEach(el => el.classList.remove('active'));
-  document.getElementById('et-' + tipo).classList.add('active');
+  var etEl = document.getElementById('et-' + tipo);
+  if (etEl) etEl.classList.add('active');
 
-  // Filtra linhas
   document.querySelectorAll('.tr-entrada').forEach(tr => {
     if (tipo === 'todas') {
       tr.style.display = '';
@@ -501,7 +554,7 @@ function filtrarEntradas(tipo) {
   });
 }
 
-// ── Nova categoria ────────────────────────────────────────────────────────
+// ── Nova categoria (saída) ────────────────────────────────────────────────
 function toggleNovaCat() {
   var box = document.getElementById('novaCatBox');
   box.classList.toggle('open');
@@ -514,36 +567,61 @@ function toggleNovaCat() {
 function salvarNovaCat() {
   var nome = document.getElementById('novaCatInput').value.trim();
   if (!nome) return;
-
   fetch('/api/categoria_nova', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome: nome })
+    body: JSON.stringify({ nome: nome, tipo: 'saida' })
   }).then(r => r.json()).then(data => {
     if (data.ok) {
-      // Adiciona aos selects de saída existentes
-      document.querySelectorAll('select[id^="sel-"], select[id^="asel-"]').forEach(sel => {
-        if (!Array.from(sel.options).find(o => o.value === data.nome)) {
-          var opt = document.createElement('option');
-          opt.value = data.nome;
-          opt.text = data.nome;
-          sel.appendChild(opt);
-        }
+      ['sel-', 'asel-'].forEach(prefix => {
+        document.querySelectorAll('select[id^="' + prefix + '"]').forEach(sel => {
+          if (!Array.from(sel.options).find(o => o.value === data.nome)) {
+            var opt = new Option(data.nome, data.nome);
+            sel.appendChild(opt);
+          }
+        });
       });
       document.getElementById('novaCatInput').value = '';
-      var msg = document.getElementById('novaCatMsg');
-      msg.style.display = 'inline';
-      setTimeout(() => {
-        msg.style.display = 'none';
-        toggleNovaCat();
-      }, 2000);
+      document.getElementById('novaCatMsg').style.display = 'inline';
+      setTimeout(() => { document.getElementById('novaCatMsg').style.display = 'none'; toggleNovaCat(); }, 2000);
     }
   }).catch(() => alert('Erro ao salvar categoria.'));
 }
+document.getElementById('novaCatInput').addEventListener('keydown', e => { if (e.key === 'Enter') salvarNovaCat(); });
 
-// Enter no campo de nova categoria
-document.getElementById('novaCatInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') salvarNovaCat();
-});
+// ── Novo tipo de entrada ──────────────────────────────────────────────────
+function toggleNovaTipo() {
+  var box = document.getElementById('novoTipoBox');
+  box.classList.toggle('open');
+  if (box.classList.contains('open')) {
+    document.getElementById('novoTipoInput').focus();
+    document.getElementById('novoTipoMsg').style.display = 'none';
+  }
+}
+
+function salvarNovoTipo() {
+  var nome = document.getElementById('novoTipoInput').value.trim();
+  if (!nome) return;
+  fetch('/api/categoria_nova', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome: nome, tipo: 'entrada' })
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      ['esel-', 'asel-'].forEach(prefix => {
+        document.querySelectorAll('select[id^="' + prefix + '"]').forEach(sel => {
+          if (!Array.from(sel.options).find(o => o.value === data.nome)) {
+            var opt = new Option(data.nome, data.nome);
+            sel.appendChild(opt);
+          }
+        });
+      });
+      document.getElementById('novoTipoInput').value = '';
+      document.getElementById('novoTipoMsg').style.display = 'inline';
+      setTimeout(() => { document.getElementById('novoTipoMsg').style.display = 'none'; toggleNovaTipo(); }, 2000);
+    }
+  }).catch(() => alert('Erro ao salvar tipo.'));
+}
+document.getElementById('novoTipoInput').addEventListener('keydown', e => { if (e.key === 'Enter') salvarNovoTipo(); });
 </script>
 {% endblock %}

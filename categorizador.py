@@ -134,7 +134,7 @@ class Lancamento:
     dia: int; mes: int; ano: int
     tipo: str; descricao: str; valor: float
     categoria: str; subcategoria: str; status: str
-    tipo_mov: str; raw: str = ""
+    tipo_mov: str; raw: str = ""; id: int = None
 
     @property
     def mes_nome(self):
