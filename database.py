@@ -66,9 +66,12 @@ def init_db():
         cur.execute("""
             CREATE TABLE IF NOT EXISTS categorias_custom (
                 id   SERIAL PRIMARY KEY,
-                nome TEXT UNIQUE,
-                tipo TEXT DEFAULT 'saida'
+                nome TEXT UNIQUE
             )
+        """)
+        # Tabela pode ter sido criada antes da coluna 'tipo' existir (banco original do Railway) — garante que existe.
+        cur.execute("""
+            ALTER TABLE categorias_custom ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT 'saida'
         """)
 
 
