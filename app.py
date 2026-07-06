@@ -59,7 +59,7 @@ CATEGORIAS_SAIDAS = [
     "Gás", "Motoboys / Entregas", "Salários", "Diaristas",
     "Supermercado", "Fornecedor de Proteínas", "Hortifruti", "Embalagens",
     "Pró-labore", "Contabilidade", "Impostos", "FGTS",
-    "Manutenção", "Troco", "Outros / Diversos",
+    "Manutenção", "Troco", "Outros / Diversos", "Investimentos",
 ]
 
 def fmt(v: float) -> str:

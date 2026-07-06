@@ -70,6 +70,7 @@ CATEGORIAS_SAIDAS = {
         "marinete de fatima abreu","clauber herlano silva nery",
     ],
     "Outros / Diversos": ["claro pay","himacol material","bagatela papelarias"],
+    "Investimentos": [],
 }
 
 # ── ENTRADAS ──────────────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ CMV_CATS       = {"Supermercado","Fornecedor de Proteínas","Hortifruti","Embala
 CMO_CATS       = {"Motoboys / Entregas","Salários","Diaristas"}
 PROLABORE_CATS = {"Pró-labore"}
 CF_CATS        = {"Contabilidade","Impostos","FGTS","Manutenção","Troco","Outros / Diversos"}
+INVESTIMENTOS_CATS = {"Investimentos"}
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 def norm(t: str) -> str:
@@ -184,12 +186,14 @@ def calcular_dre(lancamentos: list) -> dict:
     cmv = sum(l.valor for l in saidas if l.categoria in CMV_CATS)
     cmo = sum(l.valor for l in saidas if l.categoria in CMO_CATS)
     pl  = sum(l.valor for l in saidas if l.categoria in PROLABORE_CATS)
-    # CF = tudo que não é CMV, CMO ou Pró-labore (inclui categorias personalizadas automaticamente)
-    _excluir = CMV_CATS | CMO_CATS | PROLABORE_CATS
+    inv = sum(l.valor for l in saidas if l.categoria in INVESTIMENTOS_CATS)
+    # CF = tudo que não é CMV, CMO, Pró-labore ou Investimentos (inclui categorias personalizadas automaticamente)
+    _excluir = CMV_CATS | CMO_CATS | PROLABORE_CATS | INVESTIMENTOS_CATS
     cf  = sum(l.valor for l in saidas if l.categoria not in _excluir)
     mb  = rb - cmv
     mc  = mb - cmo
     ll  = mc - pl - cf
+    fc  = ll - inv
     return {
         "receita_bruta": rb,
         "cmv": cmv,
@@ -202,6 +206,9 @@ def calcular_dre(lancamentos: list) -> dict:
         "custo_fixo": cf,
         "lucro_liquido": ll,
         "pct_margem_liquida": (ll / rb * 100) if rb else 0,
+        "investimentos": inv,
+        "fundo_caixa": fc,
+        "pct_fundo_caixa": (fc / rb * 100) if rb else 0,
     }
 
 # ── RECEITAS POR SEMANA ───────────────────────────────────────────────────────

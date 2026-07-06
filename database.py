@@ -217,23 +217,28 @@ def buscar_pendentes(mes: int, ano: int) -> list:
 
 
 def buscar_historico_dre() -> list:
-    from categorizador import CMV_CATS, CMO_CATS, PROLABORE_CATS
+    from categorizador import CMV_CATS, CMO_CATS, PROLABORE_CATS, INVESTIMENTOS_CATS
     meses = buscar_meses_importados()
     historico = []
     for m in meses:
         rows = buscar_lancamentos(m["mes"], m["ano"])
-        _excluir = CMV_CATS | CMO_CATS | PROLABORE_CATS
+        _excluir = CMV_CATS | CMO_CATS | PROLABORE_CATS | INVESTIMENTOS_CATS
         receita = sum(r["valor"] for r in rows if r["tipo"] == "entrada" and r["status"] != "ignorado")
         cmv     = sum(r["valor"] for r in rows if r["tipo"] == "saida" and r["categoria"] in CMV_CATS)
         cmo     = sum(r["valor"] for r in rows if r["tipo"] == "saida" and r["categoria"] in CMO_CATS)
         pl      = sum(r["valor"] for r in rows if r["tipo"] == "saida" and r["categoria"] in PROLABORE_CATS)
+        inv     = sum(r["valor"] for r in rows if r["tipo"] == "saida" and r["categoria"] in INVESTIMENTOS_CATS)
         cf      = sum(r["valor"] for r in rows if r["tipo"] == "saida" and r["categoria"] not in _excluir)
         ll      = receita - cmv - cmo - pl - cf
+        fc      = ll - inv
         historico.append({
             "mes": m["mes"], "ano": m["ano"],
             "label": f"{['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][m['mes']]}/{str(m['ano'])[2:]}",
             "receita": receita, "cmv": cmv, "cmo": cmo, "prolabore": pl, "cf": cf,
             "lucro": ll,
             "pct_lucro": round(ll / receita * 100, 1) if receita else 0,
+            "investimentos": inv,
+            "fundo_caixa": fc,
+            "pct_fundo_caixa": round(fc / receita * 100, 1) if receita else 0,
         })
     return list(reversed(historico))
