@@ -1,83 +1,76 @@
 """
 Banco de dados — Marmita do Engenheiro.
-Usa a API REST do Supabase (sem necessidade de senha do banco).
-Requer variáveis de ambiente: SUPABASE_URL e SUPABASE_KEY.
+Usa Postgres nativo (Railway), via psycopg2.
+Requer variável de ambiente: DATABASE_URL.
 """
 import os
 import unicodedata
-import json
-import urllib.request
-import urllib.parse
+from contextlib import contextmanager
 from datetime import datetime
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://fjizzwlozsryucrdnfps.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
+import psycopg2
+import psycopg2.extras
 
-def _headers(extra=None):
-    h = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-    }
-    if extra:
-        h.update(extra)
-    return h
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-def _get(table, params=None):
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    if params:
-        url += "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers=_headers())
-    with urllib.request.urlopen(req) as r:
-        return json.loads(r.read())
 
-def _post(table, data, prefer="return=minimal"):
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    body = json.dumps(data).encode()
-    req = urllib.request.Request(url, data=body,
-          headers=_headers({"Prefer": prefer}), method="POST")
-    with urllib.request.urlopen(req) as r:
-        resp = r.read()
-        return json.loads(resp) if resp else []
+def _conn_url():
+    url = DATABASE_URL
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    return url
 
-def _patch(table, filters, data):
-    qs = "&".join(f"{k}=eq.{urllib.parse.quote(str(v))}" for k, v in filters.items())
-    url = f"{SUPABASE_URL}/rest/v1/{table}?{qs}"
-    body = json.dumps(data).encode()
-    req = urllib.request.Request(url, data=body,
-          headers=_headers({"Prefer": "return=minimal"}), method="PATCH")
-    with urllib.request.urlopen(req) as r:
-        r.read()
 
-def _delete(table, filters):
-    qs = "&".join(f"{k}=eq.{urllib.parse.quote(str(v))}" for k, v in filters.items())
-    url = f"{SUPABASE_URL}/rest/v1/{table}?{qs}"
-    req = urllib.request.Request(url, headers=_headers(), method="DELETE")
-    with urllib.request.urlopen(req) as r:
-        r.read()
+@contextmanager
+def _cursor(commit=False):
+    conn = psycopg2.connect(_conn_url(), cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur = conn.cursor()
+        yield cur
+        if commit:
+            conn.commit()
+    finally:
+        conn.close()
 
-def _upsert(table, data, on_conflict):
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    body = json.dumps(data).encode()
-    req = urllib.request.Request(url, data=body,
-          headers=_headers({
-              "Prefer": f"resolution=merge-duplicates,return=minimal",
-              "Content-Type": "application/json"
-          }), method="POST")
-    # Adiciona on_conflict como query param
-    url += f"?on_conflict={on_conflict}"
-    req = urllib.request.Request(url, data=body,
-          headers=_headers({
-              "Prefer": "resolution=merge-duplicates,return=minimal"
-          }), method="POST")
-    with urllib.request.urlopen(req) as r:
-        r.read()
 
 # ── INIT ─────────────────────────────────────────────────────────────────────
 
 def init_db():
-    """No Supabase as tabelas já existem — não precisa fazer nada."""
-    pass
+    """Cria as tabelas se ainda não existirem."""
+    with _cursor(commit=True) as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS lancamentos (
+                id           SERIAL PRIMARY KEY,
+                dia          INTEGER, mes INTEGER, ano INTEGER,
+                tipo         TEXT, descricao TEXT, valor REAL,
+                categoria    TEXT, subcategoria TEXT,
+                status       TEXT, tipo_mov TEXT, raw TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS meses_importados (
+                id           SERIAL PRIMARY KEY,
+                mes INTEGER, ano INTEGER, importado_em TEXT,
+                UNIQUE(mes, ano)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS memoria_classificacoes (
+                id              SERIAL PRIMARY KEY,
+                descricao_norm  TEXT UNIQUE,
+                descricao_orig  TEXT,
+                categoria       TEXT,
+                atualizado_em   TEXT
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS categorias_custom (
+                id   SERIAL PRIMARY KEY,
+                nome TEXT UNIQUE,
+                tipo TEXT DEFAULT 'saida'
+            )
+        """)
+
 
 # ── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -86,29 +79,39 @@ def _norm(t: str) -> str:
     t = unicodedata.normalize("NFD", t)
     return "".join(c for c in t if unicodedata.category(c) != "Mn")
 
+
 # ── MEMÓRIA DE CLASSIFICAÇÕES ─────────────────────────────────────────────────
 
 def salvar_memoria(descricao: str, categoria: str):
     dn = _norm(descricao)
-    _upsert("memoria_classificacoes", {
-        "descricao_norm": dn,
-        "descricao_orig": descricao,
-        "categoria": categoria,
-        "atualizado_em": datetime.now().isoformat()
-    }, "descricao_norm")
+    with _cursor(commit=True) as cur:
+        cur.execute("""
+            INSERT INTO memoria_classificacoes (descricao_norm, descricao_orig, categoria, atualizado_em)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (descricao_norm) DO UPDATE
+            SET descricao_orig = EXCLUDED.descricao_orig,
+                categoria = EXCLUDED.categoria,
+                atualizado_em = EXCLUDED.atualizado_em
+        """, (dn, descricao, categoria, datetime.now().isoformat()))
+
 
 def buscar_memoria() -> dict:
-    rows = _get("memoria_classificacoes", {"select": "descricao_norm,categoria"})
+    with _cursor() as cur:
+        cur.execute("SELECT descricao_norm, categoria FROM memoria_classificacoes")
+        rows = cur.fetchall()
     return {r["descricao_norm"]: r["categoria"] for r in rows}
 
+
 def listar_memoria() -> list:
-    return _get("memoria_classificacoes", {
-        "select": "*",
-        "order": "atualizado_em.desc"
-    })
+    with _cursor() as cur:
+        cur.execute("SELECT * FROM memoria_classificacoes ORDER BY atualizado_em DESC")
+        return [dict(r) for r in cur.fetchall()]
+
 
 def excluir_memoria(descricao_norm: str):
-    _delete("memoria_classificacoes", {"descricao_norm": descricao_norm})
+    with _cursor(commit=True) as cur:
+        cur.execute("DELETE FROM memoria_classificacoes WHERE descricao_norm = %s", (descricao_norm,))
+
 
 # ── CATEGORIAS PERSONALIZADAS ─────────────────────────────────────────────────
 
@@ -116,92 +119,99 @@ def salvar_categoria_custom(nome: str, tipo: str = "saida"):
     nome = nome.strip()
     if not nome:
         return
-    _upsert("categorias_custom", {"nome": nome, "tipo": tipo}, "nome")
+    with _cursor(commit=True) as cur:
+        cur.execute("""
+            INSERT INTO categorias_custom (nome, tipo) VALUES (%s, %s)
+            ON CONFLICT (nome) DO UPDATE SET tipo = EXCLUDED.tipo
+        """, (nome, tipo))
+
 
 def buscar_categorias_custom(tipo: str = "saida") -> list:
-    try:
-        rows = _get("categorias_custom", {"select": "nome,tipo", "order": "nome"})
-        return [r["nome"] for r in rows if r.get("tipo", "saida") == tipo]
-    except Exception:
-        # Fallback se coluna 'tipo' ainda não existir
-        rows = _get("categorias_custom", {"select": "nome", "order": "nome"})
-        return [r["nome"] for r in rows] if tipo == "saida" else []
+    with _cursor() as cur:
+        cur.execute("SELECT nome, tipo FROM categorias_custom ORDER BY nome")
+        rows = cur.fetchall()
+    return [r["nome"] for r in rows if (r.get("tipo") or "saida") == tipo]
+
 
 # ── LANÇAMENTOS ───────────────────────────────────────────────────────────────
 
 def salvar_lancamentos(lancamentos: list, mes: int, ano: int):
-    # Deletar existentes
-    url = f"{SUPABASE_URL}/rest/v1/lancamentos?mes=eq.{mes}&ano=eq.{ano}"
-    req = urllib.request.Request(url, headers=_headers(), method="DELETE")
-    with urllib.request.urlopen(req) as r:
-        r.read()
+    with _cursor(commit=True) as cur:
+        cur.execute("DELETE FROM lancamentos WHERE mes = %s AND ano = %s", (mes, ano))
+        cur.execute("DELETE FROM meses_importados WHERE mes = %s AND ano = %s", (mes, ano))
 
-    url2 = f"{SUPABASE_URL}/rest/v1/meses_importados?mes=eq.{mes}&ano=eq.{ano}"
-    req2 = urllib.request.Request(url2, headers=_headers(), method="DELETE")
-    with urllib.request.urlopen(req2) as r:
-        r.read()
+        if lancamentos:
+            for l in lancamentos:
+                cur.execute("""
+                    INSERT INTO lancamentos
+                        (dia, mes, ano, tipo, descricao, valor, categoria, subcategoria, status, tipo_mov, raw)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (l.dia, l.mes, l.ano, l.tipo, l.descricao, l.valor,
+                      l.categoria, l.subcategoria, l.status, l.tipo_mov, l.raw))
 
-    # Inserir lançamentos
-    if lancamentos:
-        rows = [{
-            "dia": l.dia, "mes": l.mes, "ano": l.ano,
-            "tipo": l.tipo, "descricao": l.descricao, "valor": l.valor,
-            "categoria": l.categoria, "subcategoria": l.subcategoria,
-            "status": l.status, "tipo_mov": l.tipo_mov, "raw": l.raw
-        } for l in lancamentos]
-        _post("lancamentos", rows)
+        cur.execute("""
+            INSERT INTO meses_importados (mes, ano, importado_em) VALUES (%s, %s, %s)
+            ON CONFLICT (mes, ano) DO UPDATE SET importado_em = EXCLUDED.importado_em
+        """, (mes, ano, datetime.now().isoformat()))
 
-    # Registrar mês
-    _upsert("meses_importados", {
-        "mes": mes, "ano": ano,
-        "importado_em": datetime.now().isoformat()
-    }, "mes,ano")
 
 def atualizar_categoria(lancamento_id: int, categoria: str, descricao: str):
-    _patch("lancamentos", {"id": lancamento_id}, {
-        "categoria": categoria,
-        "status": "confirmado"
-    })
+    with _cursor(commit=True) as cur:
+        cur.execute("""
+            UPDATE lancamentos SET categoria = %s, status = 'confirmado' WHERE id = %s
+        """, (categoria, lancamento_id))
     salvar_memoria(descricao, categoria)
+
 
 def atualizar_lancamento(lancamento_id: int, fields: dict):
     """Atualiza campos arbitrários de um lançamento."""
-    _patch("lancamentos", {"id": lancamento_id}, fields)
+    if not fields:
+        return
+    sets = ", ".join(f"{k} = %s" for k in fields.keys())
+    valores = list(fields.values()) + [lancamento_id]
+    with _cursor(commit=True) as cur:
+        cur.execute(f"UPDATE lancamentos SET {sets} WHERE id = %s", valores)
+
 
 def excluir_lancamento(lancamento_id: int):
-    _delete("lancamentos", {"id": lancamento_id})
+    with _cursor(commit=True) as cur:
+        cur.execute("DELETE FROM lancamentos WHERE id = %s", (lancamento_id,))
+
 
 def excluir_mes(mes: int, ano: int):
-    url = f"{SUPABASE_URL}/rest/v1/lancamentos?mes=eq.{mes}&ano=eq.{ano}"
-    req = urllib.request.Request(url, headers=_headers(), method="DELETE")
-    with urllib.request.urlopen(req) as r:
-        r.read()
-    url2 = f"{SUPABASE_URL}/rest/v1/meses_importados?mes=eq.{mes}&ano=eq.{ano}"
-    req2 = urllib.request.Request(url2, headers=_headers(), method="DELETE")
-    with urllib.request.urlopen(req2) as r:
-        r.read()
+    with _cursor(commit=True) as cur:
+        cur.execute("DELETE FROM lancamentos WHERE mes = %s AND ano = %s", (mes, ano))
+        cur.execute("DELETE FROM meses_importados WHERE mes = %s AND ano = %s", (mes, ano))
+
 
 def buscar_lancamentos(mes: int = None, ano: int = None) -> list:
-    params = {"select": "*", "order": "dia.asc,id.asc"}
-    if mes and ano:
-        params["mes"] = f"eq.{mes}"
-        params["ano"] = f"eq.{ano}"
-    return _get("lancamentos", params)
+    with _cursor() as cur:
+        if mes and ano:
+            cur.execute("""
+                SELECT * FROM lancamentos WHERE mes = %s AND ano = %s ORDER BY dia ASC, id ASC
+            """, (mes, ano))
+        else:
+            cur.execute("SELECT * FROM lancamentos ORDER BY dia ASC, id ASC")
+        return [dict(r) for r in cur.fetchall()]
+
 
 def buscar_meses_importados() -> list:
-    return _get("meses_importados", {
-        "select": "mes,ano,importado_em",
-        "order": "ano.desc,mes.desc"
-    })
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT mes, ano, importado_em FROM meses_importados ORDER BY ano DESC, mes DESC
+        """)
+        return [dict(r) for r in cur.fetchall()]
+
 
 def buscar_pendentes(mes: int, ano: int) -> list:
-    return _get("lancamentos", {
-        "select": "*",
-        "mes": f"eq.{mes}",
-        "ano": f"eq.{ano}",
-        "status": "eq.pendente",
-        "order": "dia.asc"
-    })
+    with _cursor() as cur:
+        cur.execute("""
+            SELECT * FROM lancamentos
+            WHERE mes = %s AND ano = %s AND status = 'pendente'
+            ORDER BY dia ASC
+        """, (mes, ano))
+        return [dict(r) for r in cur.fetchall()]
+
 
 def buscar_historico_dre() -> list:
     from categorizador import CMV_CATS, CMO_CATS, PROLABORE_CATS
