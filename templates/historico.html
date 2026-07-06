@@ -83,6 +83,8 @@
           <th>Custo Fixo</th>
           <th>Lucro Líquido</th>
           <th>Margem</th>
+          <th>Investimentos</th>
+          <th>Fundo de Caixa</th>
         </tr>
       </thead>
       <tbody>
@@ -96,6 +98,8 @@
           <td class="valor-saida">{{ fmt(d.cf) }}</td>
           <td class="{{ 'valor-entrada' if d.lucro >= 0 else 'valor-saida' }}">{{ fmt(d.lucro) }}</td>
           <td class="{{ 'valor-pos' if d.pct_lucro >= 0 else 'valor-neg' }}">{{ d.pct_lucro }}%</td>
+          <td style="color:#5e3fa3;font-weight:600;font-variant-numeric:tabular-nums">{{ fmt(d.investimentos) }}</td>
+          <td class="{{ 'valor-entrada' if d.fundo_caixa >= 0 else 'valor-saida' }}"><strong>{{ fmt(d.fundo_caixa) }}</strong></td>
         </tr>
       {% endfor %}
       </tbody>
@@ -135,6 +139,13 @@ new Chart(document.getElementById('chartEvolucao'), {
         tension: .3, fill: true, pointRadius: 5,
         borderDash: [5,3],
       },
+      {
+        label: 'Fundo de Caixa',
+        data: dados.map(d => d.fundo_caixa),
+        borderColor: '#7c5cbf', backgroundColor: 'rgba(124,92,191,.08)',
+        tension: .3, fill: false, pointRadius: 5,
+        borderDash: [2,2],
+      },
     ]
   },
   options: {
@@ -156,6 +167,7 @@ new Chart(document.getElementById('chartCustos'), {
       { label: 'Mão de Obra',     data: dados.map(d => d.cmo),       backgroundColor: '#f4a261' },
       { label: 'Pró-labore',      data: dados.map(d => d.prolabore), backgroundColor: '#e9a84c' },
       { label: 'Custo Fixo',      data: dados.map(d => d.cf),        backgroundColor: '#457b9d' },
+      { label: 'Investimentos',   data: dados.map(d => d.investimentos), backgroundColor: '#7c5cbf' },
     ]
   },
   options: {
