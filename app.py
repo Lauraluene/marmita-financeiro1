@@ -4,6 +4,7 @@ Marmita do Engenheiro — Painel Financeiro
 import os
 import tempfile
 from collections import defaultdict
+from datetime import date
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session
@@ -59,15 +60,15 @@ CATEGORIAS_SAIDAS = [
     "Gás", "Motoboys / Entregas", "Salários", "Diaristas",
     "Supermercado", "Fornecedor de Proteínas", "Hortifruti", "Embalagens",
     "Pró-labore", "Contabilidade", "Impostos", "FGTS",
-    "Manutenção", "Troco", "Outros / Diversos",
+    "Manutenção", "Troco", "Outros / Diversos", "Investimentos",
 ]
 
 def fmt(v: float) -> str:
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def _aplicar_memoria(lancamentos: list) -> list:
-    """Aplica a memória de classificações sobre os lançamentos pendentes."""
-    memoria = db.buscar_memoria()
+def _aplicar_memoria(lancamentos: list, mes: int, ano: int) -> list:
+    """Aplica a memória de classificações vigente para este mês/ano sobre os lançamentos pendentes."""
+    memoria = db.buscar_memoria(mes, ano)
     import unicodedata
     def norm(t):
         t = t.lower().strip()
@@ -115,10 +116,10 @@ def upload():
             return redirect(url_for("index"))
 
         lancamentos = categorizar(transacoes)
-        lancamentos = _aplicar_memoria(lancamentos)
-
         mes = lancamentos[0].mes
         ano = lancamentos[0].ano
+        lancamentos = _aplicar_memoria(lancamentos, mes, ano)
+
         db.salvar_lancamentos(lancamentos, mes, ano)
     finally:
         os.unlink(tmp_path)
@@ -192,17 +193,20 @@ def dashboard(mes, ano):
         por_cat[l.categoria]        += l.valor
         por_cat_items[l.categoria].append(l)
 
-    receita_ifood  = sum(l.valor for l in entradas if l.subcategoria == "iFood")
-    receita_cartao = sum(l.valor for l in entradas if l.subcategoria == "Cartão")
-    receita_outras = sum(l.valor for l in entradas if l.subcategoria == "Outras")
+    receita_ifood   = sum(l.valor for l in entradas if l.subcategoria == "iFood")
+    receita_cartao  = sum(l.valor for l in entradas if l.subcategoria == "Cartão")
+    receita_especie = sum(l.valor for l in entradas if l.subcategoria == "Espécie")
+    receita_outras  = sum(l.valor for l in entradas if l.subcategoria == "Outras")
 
     pendentes_count = len([l for l in lancamentos if l.status == "pendente"])
 
     categorias_custom = db.buscar_categorias_custom("saida")
     todas_categorias = CATEGORIAS_SAIDAS + [c for c in categorias_custom if c not in CATEGORIAS_SAIDAS]
-    cats_entrada_base = ["iFood", "Cartão", "Outras"]
+    cats_entrada_base = ["iFood", "Cartão", "Espécie", "Outras"]
     cats_entrada_custom = db.buscar_categorias_custom("entrada")
     categorias_entrada = cats_entrada_base + [c for c in cats_entrada_custom if c not in cats_entrada_base]
+
+    hoje = date.today()
 
     return render_template(
         "dashboard.html",
@@ -210,12 +214,14 @@ def dashboard(mes, ano):
         dre=dre, semanas=semanas,
         por_cat=dict(sorted(por_cat.items(), key=lambda x: x[1], reverse=True)),
         por_cat_items=dict(por_cat_items),
-        receita_ifood=receita_ifood, receita_cartao=receita_cartao, receita_outras=receita_outras,
+        receita_ifood=receita_ifood, receita_cartao=receita_cartao,
+        receita_especie=receita_especie, receita_outras=receita_outras,
         lancamentos=lancamentos,
         meses=db.buscar_meses_importados(),
         pendentes_count=pendentes_count,
         todas_categorias=todas_categorias,
         categorias_entrada=categorias_entrada,
+        hoje_dia=hoje.day, hoje_mes=hoje.month, hoje_ano=hoje.year,
         fmt=fmt,
     )
 
@@ -227,6 +233,53 @@ def excluir(lancamento_id):
     mes = int(request.form["mes"])
     ano = int(request.form["ano"])
     db.excluir_lancamento(lancamento_id)
+    return redirect(url_for("dashboard", mes=mes, ano=ano))
+
+# ── LANÇAMENTO EM ESPÉCIE (DINHEIRO VIVO) ─────────────────────────────────────
+
+@app.route("/lancamento_especie", methods=["POST"])
+@login_required
+def lancamento_especie():
+    mes = int(request.form["mes"])
+    ano = int(request.form["ano"])
+    tipo = request.form.get("tipo", "").strip()
+
+    try:
+        dia = int(request.form.get("dia") or 1)
+    except ValueError:
+        dia = 1
+    dia = max(1, min(31, dia))
+
+    descricao = (request.form.get("descricao") or "").strip()
+
+    try:
+        valor = float(request.form.get("valor") or 0)
+    except ValueError:
+        valor = 0
+
+    if tipo not in ("entrada", "saida") or valor <= 0:
+        flash("Preencha o valor corretamente para lançar o dinheiro em espécie.", "erro")
+        return redirect(url_for("dashboard", mes=mes, ano=ano))
+
+    if tipo == "entrada":
+        categoria = "Receita"
+        subcategoria = "Espécie"
+        if not descricao:
+            descricao = "Recebimento em espécie"
+    else:
+        categoria = (request.form.get("categoria") or "").strip()
+        if categoria == "__nova__":
+            categoria = request.form.get("nova_categoria", "").strip()
+            if categoria:
+                db.salvar_categoria_custom(categoria)
+        if not categoria:
+            categoria = "Outros / Diversos"
+        subcategoria = ""
+        if not descricao:
+            descricao = "Pagamento em espécie"
+
+    db.inserir_lancamento_manual(dia, mes, ano, tipo, descricao, valor, categoria, subcategoria)
+    flash("Lançamento em espécie adicionado.", "success")
     return redirect(url_for("dashboard", mes=mes, ano=ano))
 
 # ── EXCLUIR MÊS ───────────────────────────────────────────────────────────────
@@ -253,6 +306,13 @@ def historico():
 @login_required
 def memoria():
     items = db.listar_memoria()
+    for it in items:
+        ano_ef = it.get("ano_efetivo")
+        mes_ef = it.get("mes_efetivo")
+        if ano_ef and ano_ef > 2000:
+            it["valido_desde"] = f"{MESES_NOME.get(mes_ef, mes_ef)}/{ano_ef}"
+        else:
+            it["valido_desde"] = None
     meses = db.buscar_meses_importados()
     return render_template("memoria.html", items=items, meses=meses, fmt=fmt)
 
@@ -277,7 +337,9 @@ def api_atualizar_categoria():
     fields = {"status": "confirmado"}
     if "categoria" in data:
         fields["categoria"] = data["categoria"]
-        db.salvar_memoria(data.get("descricao", ""), data["categoria"])
+        lanc = db.buscar_lancamento(lid)
+        if lanc:
+            db.salvar_memoria(data.get("descricao", ""), data["categoria"], lanc["mes"], lanc["ano"])
     if "subcategoria" in data:
         fields["subcategoria"] = data["subcategoria"]
     db.atualizar_lancamento(lid, fields)

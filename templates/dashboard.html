@@ -20,7 +20,7 @@
 
   .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
   .tab { padding: 8px 18px; border-radius: 8px; font-size: .85rem; font-weight: 600; cursor: pointer; border: 2px solid #eee; background: white; }
-  .tab.active { border-color: #e63946; color: #e63946; background: #fff5f5; }
+  .tab.active { border-color: #F5A623; color: #935e00; background: #fff4de; }
 
   .tab-content { display: none; }
   .tab-content.active { display: block; }
@@ -43,7 +43,7 @@
     font-size: .8rem; padding: 2px 4px; border-radius: 4px;
     transition: color .2s;
   }
-  .btn-edit-cat:hover { color: #e63946; }
+  .btn-edit-cat:hover { color: #d98e12; }
   .cat-edit-form { display: none; align-items: center; gap: 6px; flex-wrap: wrap; }
   .cat-edit-form select { padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: .85rem; }
   .cat-edit-form .btn-save-cat {
@@ -93,6 +93,16 @@
   .badge-auto       { background: #e3f2fd; color: #1565c0; }
   .badge-pendente   { background: #fff8e1; color: #b55d00; }
   .badge-ignorado   { background: #f5f5f5; color: #999; }
+
+  /* Lançamento em espécie */
+  .especie-form { flex-direction: column; align-items: stretch; gap: 12px; }
+  .especie-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .especie-row input[type=text], .especie-row input[type=number], .especie-row select {
+    padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: .87rem;
+  }
+  .especie-tipo-btn.active { background: #2d6a4f; color: white; border-color: #2d6a4f; }
+  .badge-especie { background: #fff4de; color: #935e00; }
+  .tag-especie { font-size: .8rem; margin-left: 4px; cursor: default; }
 </style>
 {% endblock %}
 
@@ -114,6 +124,48 @@
       </select>
       <a href="/" class="btn btn-secondary" style="padding:8px 16px;font-size:.85rem">+ Novo extrato</a>
     </div>
+  </div>
+
+  <!-- Lançamento em espécie -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="margin-bottom:2px">💵 Dinheiro em espécie</h2>
+        <span style="font-size:.82rem;color:#888">Entradas e saídas em dinheiro vivo, que não aparecem no extrato bancário.</span>
+      </div>
+      <button class="btn btn-secondary" style="font-size:.8rem;padding:7px 16px" onclick="toggleEspecie()" type="button">+ Adicionar</button>
+    </div>
+
+    <form id="especieBox" class="nova-cat-inline especie-form" method="post" action="/lancamento_especie" style="margin-top:14px">
+      <input type="hidden" name="mes" value="{{ mes }}">
+      <input type="hidden" name="ano" value="{{ ano }}">
+
+      <div class="especie-row">
+        <button type="button" class="filtro-btn especie-tipo-btn active" data-val="entrada" onclick="setEspecieTipo('entrada', this)">⬇ Entrada</button>
+        <button type="button" class="filtro-btn especie-tipo-btn" data-val="saida" onclick="setEspecieTipo('saida', this)">⬆ Saída</button>
+        <input type="hidden" name="tipo" id="especieTipo" value="entrada">
+
+        <input type="number" name="dia" min="1" max="31"
+               value="{% if mes == hoje_mes and ano == hoje_ano %}{{ hoje_dia }}{% else %}1{% endif %}"
+               title="Dia" style="width:70px">
+
+        <input type="text" name="descricao" placeholder="Descrição (ex: venda no balcão, troco, gás avulso…)" style="flex:1;min-width:220px">
+
+        <select name="categoria" id="especieCategoria" style="display:none">
+          <option value="" disabled selected>Categoria da saída…</option>
+          {% for c in todas_categorias %}
+            <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+        </select>
+
+        <input type="number" name="valor" step="0.01" min="0.01" placeholder="Valor (R$)" required style="width:130px">
+      </div>
+
+      <div>
+        <button type="submit" class="btn" style="background:#2d6a4f;color:white;padding:8px 18px;font-size:.85rem">Salvar lançamento</button>
+        <button type="button" class="btn btn-secondary" style="padding:8px 16px;font-size:.85rem" onclick="toggleEspecie()">Cancelar</button>
+      </div>
+    </form>
   </div>
 
   <!-- Cards de receita -->
@@ -174,6 +226,16 @@
             {{ fmt(dre.lucro_liquido) }} <span class="pct">({{ "%.1f"|format(dre.pct_margem_liquida) }}%)</span>
           </div>
         </div>
+        <div class="dre-item" style="grid-column:span 2;background:#ede7f6;border-left:4px solid #7c5cbf">
+          <div class="label">Investimentos</div>
+          <div class="valor" style="color:#5e3fa3">{{ fmt(dre.investimentos) }}</div>
+        </div>
+        <div class="dre-item" style="grid-column:span 2;background:{% if dre.fundo_caixa >= 0 %}#e8f5e9{% else %}#fdecea{% endif %};border:2px solid {% if dre.fundo_caixa >= 0 %}#2d6a4f{% else %}#c1121f{% endif %}">
+          <div class="label">Fundo de Caixa</div>
+          <div class="valor {% if dre.fundo_caixa >= 0 %}verde{% else %}vermelho{% endif %}">
+            {{ fmt(dre.fundo_caixa) }} <span class="pct">({{ "%.1f"|format(dre.pct_fundo_caixa) }}%)</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -188,6 +250,10 @@
         <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee">
           <span style="color:#888;font-size:.85rem">Cartão (Stone)</span>
           <span class="valor-entrada">{{ fmt(receita_cartao) }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee">
+          <span style="color:#888;font-size:.85rem">💵 Espécie</span>
+          <span class="valor-entrada">{{ fmt(receita_especie) }}</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:8px 0">
           <span style="color:#888;font-size:.85rem">Outras (PIX/etc)</span>
@@ -244,7 +310,7 @@
             {% for l in por_cat_items[cat] %}
               <tr id="row-{{ l.id }}">
                 <td>{{ "%02d"|format(l.dia) }}/{{ "%02d"|format(l.mes) }}</td>
-                <td>{{ l.descricao }}</td>
+                <td>{{ l.descricao }}{% if l.tipo_mov == 'especie' %}<span class="tag-especie" title="Lançamento manual em espécie">💵</span>{% endif %}</td>
                 <td>
                   <div class="cat-display" id="display-{{ l.id }}">
                     <span id="cattext-{{ l.id }}">{{ l.categoria }}</span>
@@ -287,9 +353,10 @@
     {# ── ABA ENTRADAS ─────────────────────────────────────────────────── #}
     <div id="entradas" class="tab-content">
       {% set ents = lancamentos|selectattr('tipo','equalto','entrada')|rejectattr('status','equalto','ignorado')|list %}
-      {% set ifood_ents  = ents|selectattr('subcategoria','equalto','iFood')|list %}
-      {% set cartao_ents = ents|selectattr('subcategoria','equalto','Cartão')|list %}
-      {% set outras_ents = ents|rejectattr('subcategoria','equalto','iFood')|rejectattr('subcategoria','equalto','Cartão')|list %}
+      {% set ifood_ents   = ents|selectattr('subcategoria','equalto','iFood')|list %}
+      {% set cartao_ents  = ents|selectattr('subcategoria','equalto','Cartão')|list %}
+      {% set especie_ents = ents|selectattr('subcategoria','equalto','Espécie')|list %}
+      {% set outras_ents  = ents|rejectattr('subcategoria','equalto','iFood')|rejectattr('subcategoria','equalto','Cartão')|rejectattr('subcategoria','equalto','Espécie')|list %}
 
       <!-- Cabeçalho com botão nova tipo -->
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -304,7 +371,7 @@
       </div>
 
       <!-- Caixas de total clicáveis -->
-      <div class="entrada-total-box" style="margin-top:16px">
+      <div class="entrada-total-box" style="grid-template-columns:repeat(4,1fr);margin-top:16px">
         <div class="entrada-total active" id="et-todas" onclick="filtrarEntradas('todas')">
           <div class="et-label">Todas as entradas</div>
           <div class="et-val">{{ fmt(dre.receita_bruta) }}</div>
@@ -319,6 +386,11 @@
           <div class="et-label">Cartão (Stone)</div>
           <div class="et-val">{{ fmt(receita_cartao) }}</div>
           <div class="et-count">{{ cartao_ents|length }} lançamento(s)</div>
+        </div>
+        <div class="entrada-total" id="et-Espécie" onclick="filtrarEntradas('Espécie')">
+          <div class="et-label">💵 Espécie</div>
+          <div class="et-val">{{ fmt(receita_especie) }}</div>
+          <div class="et-count">{{ especie_ents|length }} lançamento(s)</div>
         </div>
       </div>
       <div style="margin-bottom:16px">
@@ -337,7 +409,7 @@
         {% for l in ents %}
           <tr class="tr-entrada" data-sub="{{ l.subcategoria }}">
             <td>{{ "%02d"|format(l.dia) }}/{{ "%02d"|format(l.mes) }}</td>
-            <td>{{ l.descricao }}</td>
+            <td>{{ l.descricao }}{% if l.tipo_mov == 'especie' %}<span class="tag-especie" title="Lançamento manual em espécie">💵</span>{% endif %}</td>
             <td>
               <div class="cat-display" id="edisplay-{{ l.id }}">
                 <span id="ecattext-{{ l.id }}">{{ l.subcategoria or l.categoria }}</span>
@@ -386,7 +458,7 @@
           <tr>
             <td>{{ "%02d"|format(l.dia) }}/{{ "%02d"|format(l.mes) }}</td>
             <td>{{ "⬆" if l.tipo == "saida" else "⬇" }}</td>
-            <td>{{ l.descricao }}</td>
+            <td>{{ l.descricao }}{% if l.tipo_mov == 'especie' %}<span class="tag-especie" title="Lançamento manual em espécie">💵</span>{% endif %}</td>
             <td>
               <div class="cat-display" id="adisplay-{{ l.id }}">
                 <span id="acattext-{{ l.id }}">{{ l.categoria }}{% if l.subcategoria %} / {{ l.subcategoria }}{% endif %}</span>
@@ -447,10 +519,10 @@
 new Chart(document.getElementById('chartReceita'), {
   type: 'doughnut',
   data: {
-    labels: ['iFood', 'Cartão', 'Outras'],
+    labels: ['iFood', 'Cartão', 'Espécie', 'Outras'],
     datasets: [{
-      data: [{{ receita_ifood }}, {{ receita_cartao }}, {{ receita_outras }}],
-      backgroundColor: ['#e63946','#2d6a4f','#457b9d'],
+      data: [{{ receita_ifood }}, {{ receita_cartao }}, {{ receita_especie }}, {{ receita_outras }}],
+      backgroundColor: ['#F5A623','#2d6a4f','#d98e12','#101012'],
       borderWidth: 2,
     }]
   },
@@ -463,9 +535,10 @@ new Chart(document.getElementById('chartSemanas'), {
   data: {
     labels: semanas.map(s => s.sem + ' (' + s.dias + ')'),
     datasets: [
-      { label: 'iFood',  data: semanas.map(s => s.iFood),  backgroundColor: '#e63946' },
-      { label: 'Cartão', data: semanas.map(s => s.Cartão), backgroundColor: '#2d6a4f' },
-      { label: 'Outras', data: semanas.map(s => s.Outras), backgroundColor: '#457b9d' },
+      { label: 'iFood',   data: semanas.map(s => s.iFood),   backgroundColor: '#F5A623' },
+      { label: 'Cartão',  data: semanas.map(s => s.Cartão),  backgroundColor: '#2d6a4f' },
+      { label: 'Espécie', data: semanas.map(s => s.Espécie), backgroundColor: '#d98e12' },
+      { label: 'Outras',  data: semanas.map(s => s.Outras),  backgroundColor: '#101012' },
     ]
   },
   options: {
@@ -547,7 +620,7 @@ function filtrarEntradas(tipo) {
       tr.style.display = '';
     } else if (tipo === 'Outras') {
       var sub = tr.dataset.sub || '';
-      tr.style.display = (sub !== 'iFood' && sub !== 'Cartão') ? '' : 'none';
+      tr.style.display = (sub !== 'iFood' && sub !== 'Cartão' && sub !== 'Espécie') ? '' : 'none';
     } else {
       tr.style.display = tr.dataset.sub === tipo ? '' : 'none';
     }
@@ -623,5 +696,16 @@ function salvarNovoTipo() {
   }).catch(() => alert('Erro ao salvar tipo.'));
 }
 document.getElementById('novoTipoInput').addEventListener('keydown', e => { if (e.key === 'Enter') salvarNovoTipo(); });
+
+// ── Lançamento em espécie ──────────────────────────────────────────────────
+function toggleEspecie() {
+  document.getElementById('especieBox').classList.toggle('open');
+}
+function setEspecieTipo(val, btn) {
+  document.getElementById('especieTipo').value = val;
+  document.querySelectorAll('.especie-tipo-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('especieCategoria').style.display = (val === 'saida') ? 'inline-block' : 'none';
+}
 </script>
 {% endblock %}

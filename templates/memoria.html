@@ -8,7 +8,7 @@
     <div>
       <h2 style="font-size:1.4rem">🧠 Memória de classificações</h2>
       <p style="color:#888;font-size:.85rem;margin-top:4px">
-        Toda vez que você confirma uma categoria, ela é salva aqui. No próximo mês, o sistema aplica automaticamente.
+        Toda vez que você corrige uma categoria, ela é salva aqui. A partir do mês em que você corrigiu, os próximos meses importados já usam a nova categoria — meses anteriores continuam com a classificação de época.
       </p>
     </div>
   </div>
@@ -20,6 +20,7 @@
           <tr>
             <th>Descrição</th>
             <th>Categoria confirmada</th>
+            <th>Válido a partir de</th>
             <th>Atualizado em</th>
             <th></th>
           </tr>
@@ -29,6 +30,7 @@
           <tr>
             <td>{{ item.descricao_orig }}</td>
             <td><span class="badge badge-confirmado">{{ item.categoria }}</span></td>
+            <td style="color:#aaa;font-size:.82rem">{{ item.valido_desde or 'sempre' }}</td>
             <td style="color:#aaa;font-size:.82rem">{{ item.atualizado_em[:10] if item.atualizado_em else '—' }}</td>
             <td>
               <form method="post" action="/memoria/excluir/{{ item.descricao_norm }}"
